@@ -1,0 +1,75 @@
+---
+title: "Lista 1 Séries"
+author: "Davi Wentrick Feijó"
+date: "2024-03-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+pacman::p_load(TSA)
+data(larain)
+data(color)
+```
+
+#### 1.1 Use software to produce the time series plot shown in Exhibit 1.2, on page 2. The data are in the file named `larain`.
+
+```{r}
+plot(larain,ylab='Inches',xlab='Year',type='o')
+
+```
+
+
+#### 1.2 Produce the time series plot displayed in Exhibit 1.3, on page 3. The data file is named color.
+
+```{r}
+plot(color,ylab='Color Property',xlab='Batch',type='o')
+```
+
+
+#### 1.3 Simulate a completely random process of length 48 with independent, normal values. Plot the time series plot. Does it look “random”? Repeat this exercise several times with a new simulation each time. 
+
+```{r}
+# Set seed for reproducibility
+set.seed(123)
+
+# Generate a random process of length 48 with independent normal values
+random_process <- rnorm(48)
+
+data = data.frame(index = c(1:48),random_process)
+
+plot(data,ylab='Color Property',xlab='Batch',type='o')
+```
+
+#### 1.4 Simulate a completely random process of length 48 with independent, chi-square distributed values, each with 2 degrees of freedom. Display the time series plot. Does it look “random” and nonnormal? Repeat this exercise several times with a new simulation each time.
+
+```{r}
+# Generate a random process of length 48 with independent normal values
+random_process_chisq <- rchisq(48, df = 2)
+
+data = data.frame(index = c(1:48),random_process_chisq)
+
+plot(data,ylab='Color Property',xlab='Batch',type='o')
+```
+
+#### 1.5 Simulate a completely random process of length 48 with independent, t-distributed values each with 5 degrees of freedom. Construct the time series plot. Does it look “random” and nonnormal? Repeat this exercise several times with a new simulation each time.
+
+```{r}
+# Generate a random process of length 48 with independent normal values
+random_process_t <- rt(48, df = 5)
+
+data = data.frame(index = c(1:48),random_process_t)
+
+plot(data,ylab='Color Property',xlab='Batch',type='o')
+```
+
+
+#### 1.6 Construct a time series plot with monthly plotting symbols for the Dubuque temperature series as in Exhibit 1.9, on page 7. The data are in the file named `tempdub`.
+
+```{r}
+
+```
+
+
+
