@@ -1,75 +1,120 @@
 ---
 title: "Lista 1 Séries"
-author: "Davi Wentrick Feijó"
+author: "Davi Wentrick Feijó - 200016806"
 date: "2024-03-19"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
+# Set seed for reproducibility
+set.seed(123)
+
 pacman::p_load(TSA)
 data(larain)
 data(color)
+data(tempdub)
 ```
 
 #### 1.1 Use software to produce the time series plot shown in Exhibit 1.2, on page 2. The data are in the file named `larain`.
 
-```{r}
+```{r, fig.align = 'center'}
 plot(larain,ylab='Inches',xlab='Year',type='o')
-
 ```
 
+\newpage 
 
 #### 1.2 Produce the time series plot displayed in Exhibit 1.3, on page 3. The data file is named color.
 
-```{r}
+```{r, fig.align = 'center'}
 plot(color,ylab='Color Property',xlab='Batch',type='o')
 ```
 
+\newpage 
 
 #### 1.3 Simulate a completely random process of length 48 with independent, normal values. Plot the time series plot. Does it look “random”? Repeat this exercise several times with a new simulation each time. 
 
-```{r}
-# Set seed for reproducibility
-set.seed(123)
-
+```{r, fig.align = 'center', out.width = "100%"}
 # Generate a random process of length 48 with independent normal values
-random_process <- rnorm(48)
+random_process_1 <- rnorm(48)
+random_process_2 <- rnorm(48)
+random_process_3 <- rnorm(48)
+random_process_4 <- rnorm(48)
 
-data = data.frame(index = c(1:48),random_process)
-
-plot(data,ylab='Color Property',xlab='Batch',type='o')
+par(mfrow = c(2, 2))
+data = data.frame(index = c(1:48),random_process_1)
+plot(data,ylab='Value',xlab='Index',type='o')
+data = data.frame(index = c(1:48),random_process_2)
+plot(data,ylab='Value',xlab='Index',type='o')
+data = data.frame(index = c(1:48),random_process_3)
+plot(data,ylab='Value',xlab='Index',type='o')
+data = data.frame(index = c(1:48),random_process_4)
+plot(data,ylab='Value',xlab='Index',type='o')
 ```
+
+Podemos notar que apesar de ser gerado aleatoriamente nao é algo facil de identificar, claro pode ter momentos em que os numeros gerados deixem isso bem claro, mas olhando nos exemplos dessa primeira lista pode ser que existam serie ou coisas que apresentem comportamento assim.
+
+\newpage 
 
 #### 1.4 Simulate a completely random process of length 48 with independent, chi-square distributed values, each with 2 degrees of freedom. Display the time series plot. Does it look “random” and nonnormal? Repeat this exercise several times with a new simulation each time.
 
-```{r}
+```{r, fig.align = 'center'}
 # Generate a random process of length 48 with independent normal values
-random_process_chisq <- rchisq(48, df = 2)
+random_process_chisq_1 <- rchisq(48, df = 2)
+random_process_chisq_2 <- rchisq(48, df = 2)
+random_process_chisq_3 <- rchisq(48, df = 2)
+random_process_chisq_4 <- rchisq(48, df = 2)
 
-data = data.frame(index = c(1:48),random_process_chisq)
-
-plot(data,ylab='Color Property',xlab='Batch',type='o')
+par(mfrow = c(2, 2))
+data = data.frame(index = c(1:48),random_process_chisq_1)
+plot(data,ylab='Value',xlab='Index',type='o')
+data = data.frame(index = c(1:48),random_process_chisq_2)
+plot(data,ylab='Value',xlab='Index',type='o')
+data = data.frame(index = c(1:48),random_process_chisq_3)
+plot(data,ylab='Value',xlab='Index',type='o')
+data = data.frame(index = c(1:48),random_process_chisq_4)
+plot(data,ylab='Value',xlab='Index',type='o')
 ```
+
+Nesse Caso o comportamento ficou diferente apresentando alguns picos de valores, mas esse me parece mais "aleatorio".
+
+\newpage 
 
 #### 1.5 Simulate a completely random process of length 48 with independent, t-distributed values each with 5 degrees of freedom. Construct the time series plot. Does it look “random” and nonnormal? Repeat this exercise several times with a new simulation each time.
 
-```{r}
+```{r, fig.align = 'center'}
 # Generate a random process of length 48 with independent normal values
-random_process_t <- rt(48, df = 5)
+random_process_t_1 <- rt(48, df = 5)
+random_process_t_2 <- rt(48, df = 5)
+random_process_t_3 <- rt(48, df = 5)
+random_process_t_4 <- rt(48, df = 5)
 
-data = data.frame(index = c(1:48),random_process_t)
-
-plot(data,ylab='Color Property',xlab='Batch',type='o')
+par(mfrow = c(2, 2))
+data = data.frame(index = c(1:48),random_process_t_1)
+plot(data,ylab='Value',xlab='Index',type='o')
+data = data.frame(index = c(1:48),random_process_t_2)
+plot(data,ylab='Value',xlab='Index',type='o')
+data = data.frame(index = c(1:48),random_process_t_3)
+plot(data,ylab='Value',xlab='Index',type='o')
+data = data.frame(index = c(1:48),random_process_t_4)
+plot(data,ylab='Value',xlab='Index',type='o')
 ```
 
+Ao meu ver os valores gerados aparentam mais aleatorios do que os demais, pelo fato de em algumas series ter um comportamento muito estranho.
+
+\newpage 
 
 #### 1.6 Construct a time series plot with monthly plotting symbols for the Dubuque temperature series as in Exhibit 1.9, on page 7. The data are in the file named `tempdub`.
 
-```{r}
-
+```{r, fig.align = 'center'}
+plot(tempdub,type='l',ylab='Temperature (F)',xlab='Year')
+points(y=tempdub,x=time(tempdub),
+pch=as.vector(season(tempdub)))
 ```
 
+Podemos notar os meses mais quente como Junho,Julho e Agosto e os mais frios sendo Dezembro, Janeiro e Fevereiro.
 
 
