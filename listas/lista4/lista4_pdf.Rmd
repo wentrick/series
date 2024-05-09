@@ -1,0 +1,284 @@
+---
+title: "Lista 4 - Series Temporais"
+author: "Davi Wentrick Feijó - 200016806"
+date: "2024-01-08"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(tidyverse,readxl,pracma)
+
+```
+
+# Dados - Consumo de Energia
+
+### Formatacao do Banco e Variaveis
+
+```{r message=FALSE, warning=FALSE}
+dados_energia <- read_excel("ConsumoEnergiaEAgua.xlsx") %>%
+  select(-c(2,5:11))
+
+dados_energia = rbind(dados_energia, list("2024-04-01",419,33)) #Adicionando a nova observacao
+```
+
+```{r}
+dados_energia = dados_energia %>%
+  mutate(consumo = Energia/Dias)
+```
+
+```{r}
+dados_energia
+```
+
+\newpage
+
+### Grafico 1
+
+```{r echo=FALSE}
+ggplot(data = dados_energia, aes(x = mes, y = Energia))+
+  geom_line()
+```
+
+Evolução temporal do consumo elétrico médio mensal de uma residência (kWh), totalizando 321 observações de jun/1997 a fev/2024. 
+
+\newpage
+
+### Funcao de Autocorrelacao 
+
+```{r}
+rho = acf(dados_energia$consumo, lag = length(dados_energia$consumo), plot = FALSE)
+```
+
+
+```{r echo=FALSE}
+plot(rho, main = " ")
+```
+
+\newpage
+
+Nos podemos dar um "zoom" no grafico é observar que:
+
+
+```{r}
+rho = acf(dados_energia$consumo, lag = 36, plot = FALSE)
+```
+
+
+```{r echo=FALSE}
+plot(rho, main = " ")
+```
+
+Existe um decaimento lento da Funcao de Autocorrelacao com $\rho(1)$ proximo de 1 o que é indicativo de nao estacionariedade
+
+\newpage
+
+### Funcao de Autocorrelacao Parcial (FACP)
+
+```{r}
+phi = pacf(dados_energia$consumo, lag = length(dados_energia$consumo), plot = FALSE)
+```
+
+```{r echo=FALSE}
+plot(phi, main = " ")
+```
+
+O corte abrupto da FACP no lag 1 com $\phi_{11}$ proximo de 1 é indicativo de nao estacionariedade 
+
+\newpage
+
+Novamente podemos apoximar o grafico apra ficar mais evidente:
+
+```{r}
+phi = pacf(dados_energia$consumo, lag = 36, plot = FALSE)
+```
+
+
+```{r echo=FALSE}
+plot(phi, main = " ")
+```
+
+\newpage
+
+### Diagrama de fase entre $Y_t$ e $Y_{t+1}$
+
+Sabemos que nosso $Y_t$ é nosso consumo (Energia/Dia) e queremos analisar $Y_{t+1}$ para isso dentro do R teremos que deslocar a serie de valores em uma unidade. Dentro do R vamos organizar da seguinte forma:
+
+* $Y_t$ = Consumo = Energia/Dias = `consumo`
+
+* $Y_{t+1}$ = Consumo deslocado em 1  = `consumo_1`
+
+```{r}
+n = length(dados_energia$consumo)
+
+dados_energia$consumo_1 = c(NA, (dados_energia$consumo[1:(n-1)]))
+
+head((cbind(dados_energia$consumo,dados_energia$consumo_1)))
+
+head(c(NA,diff(dados_energia$consumo))) #diferenca entre as obs
+```
+
+Agora vamos adicionar essas colunas no banco de dados
+
+```{r}
+dados_energia = dados_energia %>%
+  mutate(consumo_1 = c(NA, (consumo[1:(n-1)])),
+         diff = c(NA,diff(consumo)))
+```
+
+
+```{r echo=FALSE, warning=FALSE}
+ggplot(data = dados_energia, aes(x = dados_energia$consumo_1, y = dados_energia$consumo))+
+  geom_point()+
+  geom_smooth(method='lm')
+```
+
+\newpage
+
+### Variacao de energia (Diferenciacao)
+
+Nessa etapa vamos repetira glumas analises mas no lugar da variavel `consumo` vamo utilizar a variavel `diff` que representa a variacao do consumo de um mes para o outro.
+
+```{r}
+head(dados_energia$diff)
+```
+
+
+```{r}
+ggplot(data = dados_energia, aes(x = mes, y = diff))+
+  geom_line()
+```
+
+\newpage
+
+### FAC Variacao de energia
+
+
+```{r}
+x = na.omit(dados_energia$diff)
+rho = acf(x, lag = length(x), plot = FALSE)
+```
+
+
+```{r echo=FALSE}
+plot(rho, main = " ")
+```
+
+\newpage
+
+### FACP Variacao de energia
+
+
+```{r}
+phi = pacf(x, lag = length(x),plot = FALSE)
+```
+
+
+```{r echo=FALSE}
+plot(phi, main = " ")
+```
+
+A forma da FAC parcial mostra uma forma de dependência autorregressiva com vários termos
+
+\newpage
+
+### Predicao
+
+* Vamos separar a série temporal de duas partes: treinamento e teste.
+
+  + Por exemplo, vamos usar n = 160 para treinamento para prever a observação 161. Depois vamos usar n = 161 para treinamento para prever a observação 162, e assim por diante.
+
+* À medida que uma nova observação torna-se disponível, mantendo-se a estrutura do modelo, todos os parâmetros do modelo são reestimados novamente.
+
+  + Por exemplo, se o tamanho da série de treinamento for $n$ e se $h=1$, para iniciar o teste dispondo-se de $m$ observações, a próxima série de treinamento será de tamanho $n+1$, e assim sucessivamente até a inclusão de todas as observações reservadas para o teste, perfazendo uma amostra final de tamanho $n+m$.
+
+
+```{r}
+
+# Remover valores ausentes e preparar os dados
+x = na.omit(dados_energia$diff) # Removendo os NA
+n.size = length(x)  # Obtém o tamanho da amostra após a remoção de NA
+n.training = ceiling(n.size/2)  # Calcula o tamanho do conjunto de treinamento 
+observed = NULL  # Inicializa a lista para armazenar as observações reais
+predicted = NULL  # Inicializa a lista para armazenar as previsões
+
+# Loop para previsão de observações
+for (t in (n.training+1):n.size) {
+  # Selecionar dados de treinamento até o ponto anterior ao ponto de teste atual
+  x.training = x[1:(t-1)]
+  
+  # Calcular a função de autocorrelação até o lag correspondente ao ponto de teste
+  rho = acf(x.training, lag = (t-1), plot = FALSE)
+  last.lag = length(rho$acf)  # Obtém o índice do último valor na função de autocorrelação
+  Rho = rho$acf  # Obtém a função de autocorrelação
+  
+  # Construir a matriz de covariância a partir da função de autocorrelação
+  Omega = toeplitz(Rho[-last.lag])  # Constrói a matriz de Toeplitz a partir dos valores da FAC
+  beta = inv(Omega) %*% Rho[-1]  # Estima os coeficientes do modelo de previsão
+  
+  # Calcular o termo constante do modelo de previsão
+  beta.0 = mean(x.training) * (1 - sum(beta))  # Calcula o termo constante do modelo
+  
+  # Fazer a previsão para o ponto de teste atual usando o modelo construído
+  predicted[t] = beta.0 + sum(rev(beta) * x.training[-1])  # Calcula a previsão para o ponto
+  
+  # Armazenar a observação real correspondente ao ponto de teste atual
+  observed[t] = x[t]  # Armazena a observação real para fins de comparação posterior
+}
+```
+
+Apos rodar esse codigo vamos ter interesse em analisar a nova variavel que criamos a `predicted` e podemos fazer uma comparacao direta com o que foi observado usando a variavel `observed`
+
+```{r}
+dados_energia = dados_energia %>%
+  mutate(observed = c(NA,observed),
+         predicted = c(NA,predicted))
+```
+
+
+```{r echo=FALSE}
+ggplot(data = dados_energia, aes(x = mes, y = diff))+
+  geom_line(lwd = 1)+
+  geom_line(aes(x = mes,y = predicted), color = "red",lwd =1)
+```
+
+Com isso temos nossa funcao de autocorrelacao preditiva. Com isso podemos calcular nosso Y usando os valores preditos e comparar com a serie original e com os valores reais observados:
+
+
+```{r}
+Y.hat = NULL  # Inicializa uma lista para armazenar as previsões da série original
+Y.t = NULL  # Inicializa uma lista para armazenar os valores da série original
+
+for (h in (n.training+1):n.size) {
+  # Previsão do próximo valor na série original com base nas diferenças entre os valores
+  Y.t[h+1] = dados_energia$consumo[h] + dados_energia$diff[h+1]
+  
+  # Previsão do próximo valor na série original com base nas previsões feitas anteriormente
+  Y.hat[h+1] = dados_energia$consumo[h] + dados_energia$predicted[h+1]
+}
+
+```
+
+Podemos adicioanr esse vetores no DF
+
+```{r}
+dados_energia = dados_energia %>%
+  mutate(Y.hat = Y.hat,
+         Y.t = Y.t)
+```
+
+
+```{r echo=FALSE}
+ggplot(data = dados_energia, aes(x = mes, y = consumo))+
+  geom_line(lwd = 1)+
+  geom_line(aes(x = mes, y = Y.hat), color = "red", lwd =1)
+
+```
+
+
+### Resultado de Abril 2024
+
+
+```{r}
+tail(dados_energia,n = c(1,2))
+```
