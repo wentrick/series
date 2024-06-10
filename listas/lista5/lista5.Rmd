@@ -7,24 +7,252 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(astsa,extrafont,TSA,tseries,readxl,forecast,aTSA,MASS,lmtest,tidyverse,foreach,doParallel)
 ```
 
 
 Considere a serie do consumo mensal de energia eletrica (ConsumoEnergiaEAgua_New.xlsx). Denotando $X_t$ como o valor do consumo registrado no mes $t$ e $D_t$ como o número de dias de leitura, faca o que se pede a seguir.
 
-1. Calcule o consumo médio diário $Y_t=\frac{x_t}{D_t^3}$ e explique o porquê dessa transformacao.
+```{r message=FALSE, warning=FALSE}
+# Leitura dos dados
+df <- read_excel("ConsumoEnergiaEAgua.xlsx") %>%
+  dplyr::select(-c(2,5:11)) 
 
-2. Apresente o gráfico da evolucao temporal de $\left\{Y_t\right\}$, e apresente sua descricao, contemplado elementos como o tamanho da serie e periodicidade dos dados.
+# Renomear colunas
+colnames(df) <- c('Ano', 'Energia', 'Dias', 'NA')
+df <- df[, c('Ano', 'Energia', 'Dias')]  # Selecionar apenas as colunas de interesse
+```
 
-3. Apresente os gráficos da funcao de autocorrelacao (FAC) e da funcao de autocorrelacao parcial (FACP) de $\left\{Y_t\right\}$, considerando um número apropriado de defasagens (lag), incluindo a banda de $95 \%$ de confianca sob a hipótese nula de nao haver autocorrelacao serial. Em um parágrafo, descreva as formas da FAC e da FAPC, explicando o que se pode diagnosticar/sugerir com base nelas.
+#### 1. Calcule o consumo médio diário $Y_t=\frac{x_t}{D_t}$ e explique o porquê dessa transformacao.
 
-4. Aplique o teste aumentado de estacionariedade de Dickey-Fuller do pacote aTSA do R. Para a parte sazonal, faca a avaliacao por meio de um modelo de regressao com funcões harmonicas.
+\mbox{}
 
-5. Calcule a variacao do consumo $Z_t=Y_t-Y_{t-1}$, e explique o papel/significado dessa transformacao para a análise desses dados.
+```{r}
+# Converter a coluna 'Ano' para o tipo Date
+df$Ano <- as.Date(df$Ano, format='%Y-%m-%d')
 
-6. Faca o gráfico da evolucao temporal de $\left\{Z_t\right\}$, e descreva em um parágrafo o aspecto dessa figura, comparando-a com a forma observada no item 2.
+# Calcular o Consumo Médio Diário
+df$Consumo_Medio_Diario <- df$Energia / df$Dias
 
-7. Repita os passos 3 e 4, comparando os novos resultados com os anteriores.
+# Remover linhas com valores NA na coluna 'Consumo_Medio_Diario'
+df <- df[!is.na(df$Consumo_Medio_Diario), ]
+
+```
+
+```{r echo=FALSE}
+df
+```
+
+A transformação de $Y_t=\frac{x_t}{D_t}$ normaliza o consumo de energia conforme a variação no número de dias de cada mês. Isso permite comparações justas entre meses, eliminando o efeito de diferentes durações mensais. Dividindo o consumo total de energia pelo número de dias do mês, obtém-se uma média diária que reflete melhor o padrão de consumo. Assim, é possível identificar tendências de consumo mais claramente. Dessa forma, a transformação facilita uma análise mais precisa e comparativa entre diferentes períodos.
+
+\newpage
+
+#### 2. Apresente o gráfico da evolucao temporal de $\left\{Y_t\right\}$, e apresente sua descricao, contemplado elementos como o tamanho da serie e periodicidade dos dados.
+
+\mbox{}
+
+```{r echo=FALSE,fig.align = 'center',fig.width=7.5, fig.height=5}
+# Plotar a evolução temporal do Consumo Médio Diário
+ggplot(df, aes(x = Ano, y = Consumo_Medio_Diario)) +
+  geom_line(color = "blue") +
+  geom_point(color = "blue") +
+  labs(title = "Evolucao Temporal do Consumo Medio Diario de Energia",
+       x = "Ano",
+       y = "Consumo Medio Diario (kWh/dia)") +
+  theme_minimal()
+```
+
+O gráfico mostra a evolução do consumo médio diário de energia de julho de 1997 a setembro de 2024, com uma tendência geral de aumento, embora com flutuações significativas. A série temporal, com 323 pontos de dados mensais, revela que o consumo começou baixo em 1997, aumentou gradualmente até 2004, subiu mais acentuadamente até 2012, e depois estabilizou com uma leve diminuição até 2020. Desde 2020, há uma queda clara no consumo, possivelmente devido a mudanças nos hábitos de consumo ou melhorias na eficiência energética. Variações sazonais são visíveis, associadas a mudanças climáticas ou eventos específicos, e picos notáveis em 2004 e 2012 indicam períodos de consumo anormalmente alto. O aumento gradual no consumo diário sugere crescimento populacional e maior uso de dispositivos elétricos, enquanto a queda pós-2020 pode refletir melhorias na eficiência energética ou impactos de crises globais, como a pandemia de COVID-19.
+
+\newpage
+
+#### 3. Apresente os gráficos da funcao de autocorrelacao (FAC) e da funcao de autocorrelacao parcial (FACP) de $\left\{Y_t\right\}$, considerando um número apropriado de defasagens (lag), incluindo a banda de $95 \%$ de confianca sob a hipótese nula de nao haver autocorrelacao serial. Em um parágrafo, descreva as formas da FAC e da FAPC, explicando o que se pode diagnosticar/sugerir com base nelas.
+
+\mbox{}
+
+```{r,fig.align = 'center',fig.width=7, fig.height=7}
+# Plotar a função de autocorrelação (ACF) e a função de autocorrelação parcial (PACF)
+par(mfrow=c(2, 1))  # Configurar layout de 2 plots
+
+acf(df$Consumo_Medio_Diario, lag.max = 50, main = "Funcao de Autocorrelacao (FAC)")
+pacf(df$Consumo_Medio_Diario, lag.max = 50, main = "Funcao de Autocorrelacao Parcial (FACP)")
+```
+
+
+```{r echo=FALSE, fig.height=10, fig.width=10, fig.align = 'center'}
+par(mfrow=c(1, 1))  # Resetar layout de plot
+```
+
+Os gráficos da Função de Autocorrelação (FAC) e Função de Autocorrelação Parcial (FACP) da série temporal $Y_t$(Consumo Médio Diário), com 50 defasagens e uma banda de 95% de confiança, indicam a presença de autocorrelação significativa. A FAC mostra um decaimento lento das autocorrelações, típico de uma série não estacionária, enquanto a FACP apresenta autocorrelação significativa nas primeiras defasagens, sugerindo um modelo AR(1) ou AR(2). Para tornar a série estacionária, pode ser necessária uma transformação como a diferenciação. Após essa transformação, um modelo ARIMA com um componente AR de ordem 1 ou 2 pode ser adequado, sendo essencial a análise dos resíduos do modelo ajustado para confirmar a remoção da autocorrelação serial.
+
+\newpage
+
+#### 4. Aplique o teste aumentado de estacionariedade de Dickey-Fuller do pacote aTSA do R. Para a parte sazonal, faca a avaliacao por meio de um modelo de regressao com funcões harmonicas.
+
+\mbox{}
+
+```{r}
+# Converter a série 'Consumo_Medio_Diario' para um objeto ts
+y <- ts(df$Consumo_Medio_Diario, frequency=12)
+
+# Aplicar o teste aumentado de Dickey-Fuller
+adf_result <- tseries::adf.test(y, alternative = "stationary", k =12)
+print(adf_result)
+```
+
+
+
+\newpage
+
+Agora vamos para o modelo de funcões harmonicas:
+
+```{r}
+# Criar funções harmônicas para modelagem sazonal
+n <- length(y)
+period <- 12
+t <- 1:n
+
+harmonics <- data.frame(
+  sin1 = sin(2 * pi * t / period),
+  cos1 = cos(2 * pi * t / period),
+  sin2 = sin(4 * pi * t / period),
+  cos2 = cos(4 * pi * t / period)
+)
+
+# Adicionar uma constante às funções harmônicas
+X <- cbind(1, harmonics)
+
+# Ajustar o modelo de regressão com funções harmônicas
+harmonic_model <- lm(y ~ sin1 + cos1 + sin2 + cos2, data = harmonics)
+summary(harmonic_model)
+```
+
+\newpage
+
+```{r}
+# Extrair os resíduos do modelo
+residuals <- residuals(harmonic_model)
+
+# Aplicar o teste aumentado de Dickey-Fuller aos resíduos
+adf_result_residuals <- tseries::adf.test(residuals,k = 12)
+print(adf_result_residuals)
+```
+
+
+O Teste Aumentado de Dickey-Fuller (ADF) indica que a série temporal original não é estacionária, e o modelo de regressão com funções harmônicas não captura bem a sazonalidade, como demonstrado pelo baixo $R^2$ e coeficientes estatisticamente insignificantes. Além disso, o teste ADF nos resíduos do modelo mostra que eles também não são estacionários, indicando que a sazonalidade não foi removida de forma eficaz.
+
+\newpage
+
+#### 5. Calcule a variacao do consumo $Z_t=Y_t-Y_{t-1}$, e explique o papel/significado dessa transformacao para a análise desses dados.
+
+\mbox{}
+
+```{r}
+# Calcular a diferença da série temporal
+y_diff <- diff(y)
+
+# Aplicar o teste aumentado de Dickey-Fuller à série diferenciada
+adf_result_diff <- tseries::adf.test(y_diff,k=12)
+print(adf_result_diff)
+```
+
+A transformação para calcular a variação do consumo $Z_t=Y_t-Y_{t-1}$ é crucial para analisar séries temporais não estacionárias. A estatística ADF de -5.1886, sendo menor que todos os valores críticos, confirma que a série diferenciada é estacionária. A diferenciação foi eficaz, tornando a série adequada para modelos que assumem estacionaridade, como o ARIMA, que pode capturar tanto a parte autoregressiva quanto a média móvel.
+
+\newpage
+
+#### 6. Faca o gráfico da evolucao temporal de $\left\{Z_t\right\}$, e descreva em um parágrafo o aspecto dessa figura, comparando-a com a forma observada no item 2.
+
+\mbox{}
+
+```{r echo=FALSE,fig.align = 'center',fig.width=10, fig.height=8}
+# Plotar a série temporal original e a série diferenciada
+par(mfrow=c(2, 1), mar=c(4, 4, 2, 1))  # Configurar layout do plot
+
+plot(y, type='l', main='Serie Temporal Original', ylab='Consumo Medio Diario', col='blue')
+legend("topright", legend="Consumo Medio Diario", col="blue", lty=1)
+
+plot(y_diff, type='l', main='Serie Temporal Diferenciada', ylab='Consumo Medio Diario Diferenciado', col='red')
+legend("topright", legend="Consumo Medio Diario Diferenciado", col="red", lty=1)
+
+par(mfrow=c(1, 1))  # Resetar layout de plot
+```
+
+
+A série original exibe tendência e sazonalidade claras, com flutuações crescentes ao longo do tempo, indicando não estacionaridade. Após a diferenciação, a série mostra flutuações ao redor de uma média constante, sem tendência clara, indicando que se tornou estacionária. A série diferenciada perdeu a tendência de longo prazo e os padrões sazonais visíveis, resultando em um comportamento mais aleatório, como ruído branco. Isso confirma que a diferenciação foi bem-sucedida em remover a tendência e a sazonalidade, tornando a série adequada para modelos que assumem estacionaridade, como ARIMA.
+
+\newpage
+
+#### 7. Repita os passos 3 e 4, comparando os novos resultados com os anteriores.                                                                              
+\mbox{}
+
+Vamos comparar as FAC e FACP entre a serie original e a diferenciada:
+
+```{r,fig.align = 'center',fig.width=10, fig.height=10}
+# Plotar as funções de autocorrelação (ACF) e autocorrelação parcial (PACF)
+par(mfrow=c(2, 2))  # Configurar layout do plot
+
+acf(y, lag.max=50, main='Funcao de Autocorrelacao (FAC)')
+pacf(y, lag.max=50, main='Funcao de Autocorrelacao Parcial (FACP)')
+acf(y_diff, lag.max=50, main='Funcao de Autocorrelacao (FAC) para a serie diferenciada')
+pacf(y_diff, lag.max=50, main='Funcao de Autocorrelacao Parcial (FACP) para a serie diferenciada')
+```
+
+```{r echo=FALSE, fig.height=12, fig.width=15, fig.align ='center'}
+par(mfrow=c(1, 1))  # Resetar layout de plot
+```
+
+
+ChatGPT
+A Função de Autocorrelação (FAC) da série original mostra um decaimento lento, sugerindo uma tendência não estacionária, enquanto a Função de Autocorrelação Parcial (FACP) indica uma componente autoregressiva significativa. Após a diferenciação, a FAC da série diferenciada exibe um comportamento mais aleatório, com valores dentro dos limites de significância, indicando estacionaridade. A FACP da série diferenciada também mostra um comportamento aleatório, com apenas o primeiro lag significativamente diferente de zero. Isso confirma que a diferenciação removeu a tendência original, tornando a série adequada para modelagem ARIMA com pelo menos uma diferenciação.
+
+\newpage
+
+Em seguida vamos calcular o teste por meio das funcoes harmonicas:
+
+```{r}
+# Criar funções harmônicas para a série diferenciada
+n_diff <- length(y_diff)
+t_diff <- 1:n_diff
+
+harmonics_diff <- data.frame(
+  sin1 = sin(2 * pi * t_diff / period),
+  cos1 = cos(2 * pi * t_diff / period),
+  sin2 = sin(4 * pi * t_diff / period),
+  cos2 = cos(4 * pi * t_diff / period)
+)
+
+# Adicionar uma constante às funções harmônicas
+X_diff <- cbind(1, harmonics_diff)
+
+# Ajustar o modelo de regressão com funções harmônicas para a série diferenciada
+harmonic_model_diff <- lm(y_diff ~ sin1 + cos1 + sin2 + cos2, data = harmonics_diff)
+summary(harmonic_model_diff)
+```
+
+\newpage
+
+```{r}
+# Extrair os resíduos do modelo
+residuals_diff <- residuals(harmonic_model_diff)
+
+# Aplicar o teste aumentado de Dickey-Fuller aos resíduos do modelo harmônico da série diferenciada
+adf_result_residuals_diff <- adf.test(residuals_diff)
+```
+
+```{r echo=FALSE,fig.align = 'center',fig.width=7.5, fig.height=5}
+# Plotar os resíduos do modelo harmônico
+ggplot(data.frame(residuals_diff = residuals_diff), aes(x = 1:length(residuals_diff), y = residuals_diff)) +
+  geom_line(color = "blue") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Residuos do Modelo Harmonico",
+       x = "Tempo",
+       y = "Residuos") +
+  theme_minimal()
+```
+
+ A análise dos resíduos de um modelo de regressão com funções harmônicas indica que a sazonalidade foi capturada adequadamente.
+
+\newpage
 
 Considere que $\hat{Y}_{t+h}$ representa a previsao no instante $t+h$ obtida com base nas informacões disponíveis até o tempo $t$; ou seja,
 $$
@@ -38,32 +266,383 @@ Separe a massa de dados em duas partes, conforme esquema abaixo:
 | $Y_1, \ldots, Y_m$ | $Y_{m+1}, \ldots, Y_n$ |
 
 Utilizando os dados de treinamento:
-8. Considerando o modelo $\operatorname{SARIMA}(p, d, q) \times(P, D, Q) s$ para a série $Y_t$, defina um valor apropriado para a ordem sazonal $s$ e as ordens de diferenciacões $d$ e $D$ com base nos passos anteriores.
 
-9. Defina uma malha de valores para as ordens autorregressivas $p$ e $P$ e de médias móveis $q$ e $Q$ e obtenha o valor do critério de informacao bayesiano de Schwarz (BIC) para cada combinacao $(p, d, q) \times(P, D, Q)$ por meio da funcao sarima do pacote astsa.
+#### 8. Considerando o modelo $\operatorname{SARIMA}(p, d, q) \times(P, D, Q) s$ para a série $Y_t$, defina um valor apropriado para a ordem sazonal $s$ e as ordens de diferenciacões $d$ e $D$ com base nos passos anteriores.
 
-10. Liste os modelos com os menores BIC. Certifique-se que o melhor modelo nao possua uma ordem na extremidade da malha definida no item 9. Se houver, retorne para o passo 9 , ampliando a malha.
+\newpage
 
-11. Inicie o diagnóstico com o modelo que apresenta o menor BIC:
+#### 9. Defina uma malha de valores para as ordens autorregressivas $p$ e $P$ e de médias móveis $q$ e $Q$ e obtenha o valor do critério de informacao bayesiano de Schwarz (BIC) para cada combinacao $(p, d, q) \times(P, D, Q)$ por meio da funcao sarima do pacote astsa.
 
-11.1 Analise as estimativas dos parâmetros por meio da funcao sarima do pacote astsa.
+\mbox{}
 
-11.2 Faca os gráficos da FAC e FACP residual, e aplique o teste de LjungBox.
+```{r,tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+#Funcao paralelizada (7.7sec) enquanto a normal demora 21sec
+# Dividir os dados em treino e validação
+train <- head(df$Consumo_Medio_Diario, round(0.8 * nrow(df)))
+validation <- tail(df$Consumo_Medio_Diario, nrow(df) - length(train))
+full_data <- c(train, validation)
 
-11.3 Teste a normalidade residual.
+# Definir as malhas de valores para os parâmetros p, d, q, P, D, Q, m
+p <- c(0, 1, 2)
+d <- c(1)
+q <- c(0, 1, 2)
+P <- c(0, 1, 2)
+D <- c(1)
+Q <- c(0, 1, 2)
+m <- c(12)
 
-11.4 Caso haja problemas em 11.1 e 11.2 , repita a análise com os próximos modelos candidatos.
+# Criar combinações de pdq e PDQm
+pdq_grid <- expand.grid(p=p, d=d, q=q)
+PDQm_grid <- expand.grid(P=P, D=D, Q=Q, m=m)
 
-11.5 Caso nao seja possível encontrar um modelo adequado, será preciso redefinir o modelo no passo 8 . Se as ordens $s, d$, e $D$ estiverem corretas, entao é possível que o modelo SARIMA näo seja apropriado.
+# Configurar paralelismo
+cores <- detectCores() - 1
+cl <- makeCluster(cores)
+registerDoParallel(cl)
+
+# Função para calcular o BIC para cada combinação de pdq e PDQm
+SARIMA_grid <- function(endog, pdq_grid, PDQm_grid) {
+  # Pré-alocar data frame
+  model_info <- data.frame(order=character(), seasonal_order=character(), MAPE=numeric(), RMSE=numeric(), AIC=numeric(), BIC=numeric(), stringsAsFactors=FALSE)
+  
+  # Usar foreach para paralelismo
+  results <- foreach(i = 1:nrow(pdq_grid), .combine = rbind, .packages = c('forecast')) %dopar% {
+    local_model_info <- data.frame(order=character(), seasonal_order=character(), MAPE=numeric(), RMSE=numeric(), AIC=numeric(), BIC=numeric(), stringsAsFactors=FALSE)
+    
+    for (j in 1:nrow(PDQm_grid)) {
+      try({
+        fit <- Arima(endog, order=as.numeric(pdq_grid[i, 1:3]), seasonal=list(order=as.numeric(PDQm_grid[j, 1:3]), period=PDQm_grid[j, 4]))
+        pred <- fitted(fit)
+        
+        MAPE <- mean(abs((endog - pred) / endog), na.rm=TRUE)
+        RMSE <- sqrt(mean((endog - pred)^2, na.rm=TRUE))
+        AIC <- fit$aic
+        BIC <- BIC(fit)
+        
+        local_model_info <- rbind(local_model_info, data.frame(order=paste(as.numeric(pdq_grid[i, 1:3]), collapse=","),
+                                                               seasonal_order=paste(as.numeric(PDQm_grid[j, 1:4]), collapse=","),
+                                                               MAPE=MAPE, RMSE=RMSE, AIC=AIC, BIC=BIC, stringsAsFactors=FALSE))
+      }, silent=TRUE)
+    }
+    
+    return(local_model_info)
+  }
+  
+  return(results)
+}
+
+# Medir o tempo de execução
+start_time <- Sys.time()
+
+# Calcular os modelos SARIMA
+model_info <- SARIMA_grid(train, pdq_grid, PDQm_grid)
+
+end_time <- Sys.time()
+execution_time <- end_time - start_time
+print(paste("Tempo necessário:", execution_time))
+
+# Fechar cluster
+stopCluster(cl)
+
+# Obter os 10 melhores modelos com base nos critérios MAPE, RMSE, AIC e BIC
+least_MAPE <- model_info %>% arrange(MAPE) %>% head(10)
+
+least_RMSE <- model_info %>% arrange(RMSE) %>% head(10)
+
+least_AIC <- model_info %>% arrange(AIC) %>% head(10)
+
+least_BIC <- model_info %>% arrange(BIC) %>% head(10)
+
+```
+
+\newpage
+
+```{r echo=FALSE}
+print("Melhores modelos por MAPE:")
+print(least_MAPE)
+
+print("Melhores modelos por RMSE:")
+print(least_RMSE)
+
+print("Melhores modelos por AIC:")
+print(least_AIC)
+
+print("Melhores modelos por BIC:")
+print(least_BIC)
+```
+
+
+\newpage
+
+#### 10. Liste os modelos com os menores BIC. Certifique-se que o melhor modelo nao possua uma ordem na extremidade da malha definida no item 9. Se houver, retorne para o passo 9 , ampliando a malha.
+
+\mbox{}
+
+```{r}
+# Listar os modelos com os menores BIC
+least_BIC <- model_info %>% arrange(BIC) %>% head(10)
+```
+
+```{r echo=FALSE}
+print("Modelos com menores BIC:")
+print(least_BIC)
+```
+
+
+\newpage
+
+#### 11. Inicie o diagnóstico com o modelo que apresenta o menor BIC:
+
+##### 11.1 Analise as estimativas dos parâmetros por meio da funcao sarima do pacote astsa.
+
+\mbox{}
+
+```{r message=FALSE, warning=FALSE,fig.width=10, fig.height=10}
+# Analisar as estimativas dos parâmetros do melhor modelo
+# Seleciona os parâmetros do melhor modelo com base no menor BIC
+best_model_params <- least_BIC[1,1]
+best_model_params_seasonal = least_BIC[1,2]
+
+order <- as.integer(unlist(strsplit(best_model_params, ",")))
+best_seasonal_order <- as.integer(unlist(strsplit(best_model_params_seasonal, ",")))
+seasonal_order = list(order = best_seasonal_order, period = m)
+
+# Ajusta o modelo SARIMA com os melhores parâmetros
+best_model <- sarima(train,  p = order[1], d = order[2], q = order[3] , seasonal = seasonal_order)
+```
+
+\newpage
+
+##### 11.2 Faca os gráficos da FAC e FACP residual, e aplique o teste de LjungBox.
+
+\mbox{}
+
+```{r, fig.align='center', fig.height=8, fig.width=10 }
+# Obtém os resíduos do melhor modelo
+residuals <- residuals(best_model$fit)
+
+# Plota a ACF e PACF dos resíduos
+par(mfrow = c(2, 1))
+
+acf(residuals, main = "ACF dos Residuos", lag.max = 20)
+pacf(residuals, main = "PACF dos Residuos", lag.max = 20)
+```
+
+\newpage
+
+```{r}
+# Teste de Ljung-Box
+ljung_box_result <- Box.test(residuals, lag = 10, type = "Ljung-Box", fitdf = length(order) - 1)
+```
+
+
+```{r echo=FALSE}
+# Resultados para o décimo Lag
+print("Resultados para o décimo Lag")
+print(ljung_box_result)
+
+lb_stat <- ljung_box_result$statistic
+lb_pvalue <- ljung_box_result$p.value
+```
+
+
+```{r echo=FALSE}
+# Conclusão
+conclusion <- ifelse(lb_pvalue < 0.05,
+                     "Há evidências de autocorrelação significativa nos resíduos no lag 10 (p < 0.05).",
+                     "Não há evidências de autocorrelação significativa nos resíduos no lag 10 (p >= 0.05).")
+
+cat("\nConclusão:\n", conclusion, "\n")
+```
+
+
+##### 11.3 Teste a normalidade residual.
+
+\mbox{}
+
+```{r}
+# Teste de Shapiro-Wilk para normalidade dos resíduos
+shapiro_test <- shapiro.test(residuals)
+shapiro_p_value <- shapiro_test$p.value
+```
+
+
+```{r echo=FALSE}
+# Resultado do teste de Shapiro-Wilk
+cat("Resultado do Teste de Shapiro-Wilk (p-value):", shapiro_p_value, "\n")
+
+if (shapiro_p_value > 0.05) {
+  cat("Os resíduos parecem ser normalmente distribuídos.\n")
+} else {
+  cat("Os resíduos não parecem ser normalmente distribuídos. Considere investigar mais.\n")
+}
+```
+
+
+##### 11.4 Caso haja problemas em 11.1 e 11.2 , repita a análise com os próximos modelos candidatos.
+
+```{r}
+
+```
+
+
+##### 11.5 Caso nao seja possível encontrar um modelo adequado, será preciso redefinir o modelo no passo 8 . Se as ordens $s, d$, e $D$ estiverem corretas, entao é possível que o modelo SARIMA näo seja apropriado.
 Utilizando os dados de validacao:
 
-12. Como o método de estimacao é recursivo, a obtencao dos erros de previsao um passo à frente na massa de validacao pode ser realizada da seguinte forma:
+\newpage
 
-12.1 Aplique o modelo sobre a base de dados completa, usando a funcao sarima do pacote astsa.
+#### 12. Como o método de estimacao é recursivo, a obtencao dos erros de previsao um passo à frente na massa de validacao pode ser realizada da seguinte forma:
+
+##### 12.1 Aplique o modelo sobre a base de dados completa, usando a funcao sarima do pacote astsa.
+
+\mbox{}
+
+```{r message=FALSE, warning=FALSE,fig.align = 'center',fig.width=10, fig.height=10}
+# Ajusta o modelo SARIMA na base de dados completa
+fitted_model <- sarima(full_data, p = order[1], d = order[2], q = order[3] , seasonal = seasonal_order)
+```
+
+\newpage
+
+##### 12.2 Obtenha os erros de previsão um passo à frente observados na parte da validação do modelo
+
+\mbox{}
+
+```{r,fig.align = 'center',fig.width=7.5, fig.height=5}
+# Previsão na base de validação
+forecast <- sarima.for(as.ts(full_data), n.ahead=length(validation), 
+                       p=order[1], d=order[2], q=order[3], 
+                       P=best_seasonal_order[1], D=best_seasonal_order[2], Q=best_seasonal_order[3], S=best_seasonal_order[4])
+
+# Calcular os erros de previsão
+mse <- mean((validation - forecast$pred)^2)
+mae <- mean(abs(validation - forecast$pred))
+```
 
 
+```{r echo=FALSE, fig.height=5, fig.width=7.5, fig.align='center'}
+cat("\nErros de Previsão um passo à frente na massa de validação:\n")
+cat(sprintf("MSE: %f\n", mse))
+cat(sprintf("MAE: %f\n", mae))
+```
 
 
+```{r echo=FALSE, fig.height=5, fig.width=7.5,fig.align= 'center'}
+# Gráfico de comparação
+plot_data <- data.frame(
+  Data = time(train),
+  Consumo = as.numeric(train),
+  Tipo = rep("Treinamento", length(train))
+)
+validation_data <- data.frame(
+  Data = time(validation)+length(train),
+  Consumo = as.numeric(validation),
+  Tipo = rep("Validacao", length(validation))
+)
+forecast_data <- data.frame(
+  Data = time(validation)+length(train),
+  Consumo = as.numeric(forecast$pred),
+  Tipo = rep("Previsao", length(validation))
+)
+plot_data <- rbind(plot_data, validation_data, forecast_data)
+```
+
+
+```{r echo=FALSE,fig.align = 'center',fig.width=10, fig.height=5}
+ggplot(plot_data, aes(x=Data, y=Consumo, color=Tipo)) +
+  geom_line() +
+  labs(title="Previsao vs Dados de Validacao",
+       x="Data",
+       y="Consumo Medio Diario (kWh/dia)") +
+  scale_color_manual(values=c("Treinamento"="black", "Validacao"="blue", "Previsao"="red")) +
+  theme_minimal()
+```
+
+\newpage
+
+##### 12.3 Calcule um índice de desempenho preditivo. Por exemplo, obtenha o MAPE (mean absolute percentage error)
+
+\mbox{}
+
+```{r}
+forecast_mean <- forecast$pred
+
+# Calcular o MAPE
+mape <- mean(abs((validation - forecast_mean) / validation)) 
+```
+
+```{r echo=FALSE}
+cat(sprintf("O MAPE (Erro Médio Percentual Absoluto) é: %.2f%%\n", mape))
+```
+
+##### 12.4 Como referência, modelos com MAPE inferiores a 10% geralmente são considerados muito bons. Entre 10% e 20% são bons modelos preditivos, e entre 20% e 50% são modelos razoáveis/aceitáveis.
+
+\mbox{}
+
+```{r}
+if (mape < 10) {
+  cat("Modelo muito bom.\n")
+} else if (mape < 20) {
+  cat("Bom modelo preditivo.\n")
+} else if (mape < 50) {
+  cat("Modelo razoável/aceitável.\n")
+} else {
+  cat("O modelo precisa ser melhorado.\n")
+}
+```
+
+\newpage
+
+#### 13. Utilize a função sarima.for do pacote astsa para a obtenção de previsões para os próximos 12 meses (ou outro horizonte desejado) e a banda de previsão com 95% de cobertura. Discuta sobre as limitações dessas previsões, incluindo um insigh sobre como proceder se a hipótese de normalidade residual for descartada no passo 11.3.
+
+\mbox{}
+
+```{r}
+horizon <- 12
+
+last_date <- tail(df$Ano,n=1)
+
+# Extrair o último mês e ano das datas
+last_month <- as.numeric(format(last_date, "%m"))
+last_year <- as.numeric(format(last_date, "%Y"))
+
+# Gerar índices de datas para os próximos 12 meses
+date_index <- seq(as.Date(paste0(last_year, "-", last_month, "-01")), 
+                  by = "month", length.out = horizon)
+
+# Realizar a previsão usando o modelo ajustado
+forecast <- sarima.for(as.ts(full_data), n.ahead = horizon, 
+                       p = order[1], d = order[2], q = order[3], 
+                       P = best_seasonal_order[1], D = best_seasonal_order[2], Q = best_seasonal_order[3], 
+                       S = best_seasonal_order[4])
+```
+
+\newpage
+
+```{r}
+# Extrair valores previstos e intervalos de confiança
+forecast_values <- forecast$pred
+forecast_conf_int <- forecast$pred + cbind(-1.96 * forecast$se, 1.96 * forecast$se)
+
+# Criar dataframe de previsões
+forecast_df <- data.frame(
+  Mes = date_index,
+  Previsões = forecast_values,
+  Limite_Inferior = forecast_conf_int[, 1],
+  Limite_Superior = forecast_conf_int[, 2]
+)
+
+# Converter coluna de meses para o formato ano-mês
+forecast_df$Mes <- format(forecast_df$Mes, "%Y-%m")
+```
+
+```{r echo=FALSE}
+# Imprimir o dataframe de previsões
+print(forecast_df)
+```
+
+
+#### 14. Redija um parágrafo concluindo o estudo (inclua uma recomendação sobre como o modelo deve ser atualizado à medida que novas informações estiverem disponíveis).
 
 
 
