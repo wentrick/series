@@ -2,7 +2,9 @@
 title: "Lista 5 - Series"
 author: "Davi Wentrick Feijó"
 date: "2024-06-03"
-output: pdf_document
+output:
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
@@ -22,6 +24,8 @@ df <- read_excel("ConsumoEnergiaEAgua.xlsx") %>%
 colnames(df) <- c('Ano', 'Energia', 'Dias', 'NA')
 df <- df[, c('Ano', 'Energia', 'Dias')]  # Selecionar apenas as colunas de interesse
 ```
+
+\newpage
 
 #### 1. Calcule o consumo médio diário $Y_t=\frac{x_t}{D_t}$ e explique o porquê dessa transformacao.
 
@@ -91,53 +95,45 @@ Os gráficos da Função de Autocorrelação (FAC) e Função de Autocorrelaçã
 
 \mbox{}
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 # Converter a série 'Consumo_Medio_Diario' para um objeto ts
 y <- ts(df$Consumo_Medio_Diario, frequency=12)
-
 # Aplicar o teste aumentado de Dickey-Fuller
 adf_result <- tseries::adf.test(y, alternative = "stationary", k =12)
-print(adf_result)
 ```
 
-
-
-\newpage
-
-Agora vamos para o modelo de funcões harmonicas:
+```{r echo=FALSE}
+print(adf_result)
+```
 
 ```{r}
 # Criar funções harmônicas para modelagem sazonal
 n <- length(y)
 period <- 12
 t <- 1:n
-
 harmonics <- data.frame(
   sin1 = sin(2 * pi * t / period),
   cos1 = cos(2 * pi * t / period),
   sin2 = sin(4 * pi * t / period),
   cos2 = cos(4 * pi * t / period)
 )
-
 # Adicionar uma constante às funções harmônicas
 X <- cbind(1, harmonics)
-
 # Ajustar o modelo de regressão com funções harmônicas
 harmonic_model <- lm(y ~ sin1 + cos1 + sin2 + cos2, data = harmonics)
 summary(harmonic_model)
 ```
 
-\newpage
-
-```{r}
+```{r message=FALSE, warning=FALSE}
 # Extrair os resíduos do modelo
 residuals <- residuals(harmonic_model)
-
 # Aplicar o teste aumentado de Dickey-Fuller aos resíduos
 adf_result_residuals <- tseries::adf.test(residuals,k = 12)
-print(adf_result_residuals)
 ```
 
+```{r echo=FALSE}
+print(adf_result_residuals)
+```
 
 O Teste Aumentado de Dickey-Fuller (ADF) indica que a série temporal original não é estacionária, e o modelo de regressão com funções harmônicas não captura bem a sazonalidade, como demonstrado pelo baixo $R^2$ e coeficientes estatisticamente insignificantes. Além disso, o teste ADF nos resíduos do modelo mostra que eles também não são estacionários, indicando que a sazonalidade não foi removida de forma eficaz.
 
@@ -150,7 +146,6 @@ O Teste Aumentado de Dickey-Fuller (ADF) indica que a série temporal original n
 ```{r}
 # Calcular a diferença da série temporal
 y_diff <- diff(y)
-
 # Aplicar o teste aumentado de Dickey-Fuller à série diferenciada
 adf_result_diff <- tseries::adf.test(y_diff,k=12)
 print(adf_result_diff)
@@ -202,7 +197,6 @@ par(mfrow=c(1, 1))  # Resetar layout de plot
 ```
 
 
-ChatGPT
 A Função de Autocorrelação (FAC) da série original mostra um decaimento lento, sugerindo uma tendência não estacionária, enquanto a Função de Autocorrelação Parcial (FACP) indica uma componente autoregressiva significativa. Após a diferenciação, a FAC da série diferenciada exibe um comportamento mais aleatório, com valores dentro dos limites de significância, indicando estacionaridade. A FACP da série diferenciada também mostra um comportamento aleatório, com apenas o primeiro lag significativamente diferente de zero. Isso confirma que a diferenciação removeu a tendência original, tornando a série adequada para modelagem ARIMA com pelo menos uma diferenciação.
 
 \newpage
@@ -213,17 +207,14 @@ Em seguida vamos calcular o teste por meio das funcoes harmonicas:
 # Criar funções harmônicas para a série diferenciada
 n_diff <- length(y_diff)
 t_diff <- 1:n_diff
-
 harmonics_diff <- data.frame(
   sin1 = sin(2 * pi * t_diff / period),
   cos1 = cos(2 * pi * t_diff / period),
   sin2 = sin(4 * pi * t_diff / period),
   cos2 = cos(4 * pi * t_diff / period)
 )
-
 # Adicionar uma constante às funções harmônicas
 X_diff <- cbind(1, harmonics_diff)
-
 # Ajustar o modelo de regressão com funções harmônicas para a série diferenciada
 harmonic_model_diff <- lm(y_diff ~ sin1 + cos1 + sin2 + cos2, data = harmonics_diff)
 summary(harmonic_model_diff)
@@ -234,9 +225,8 @@ summary(harmonic_model_diff)
 ```{r}
 # Extrair os resíduos do modelo
 residuals_diff <- residuals(harmonic_model_diff)
-
 # Aplicar o teste aumentado de Dickey-Fuller aos resíduos do modelo harmônico da série diferenciada
-adf_result_residuals_diff <- adf.test(residuals_diff)
+adf_result_residuals_diff <- tseries::adf.test(residuals_diff,k=12)
 ```
 
 ```{r echo=FALSE,fig.align = 'center',fig.width=7.5, fig.height=5}
@@ -250,7 +240,7 @@ ggplot(data.frame(residuals_diff = residuals_diff), aes(x = 1:length(residuals_d
   theme_minimal()
 ```
 
- A análise dos resíduos de um modelo de regressão com funções harmônicas indica que a sazonalidade foi capturada adequadamente.
+A análise dos resíduos de um modelo de regressão com funções harmônicas indica que a sazonalidade foi capturada adequadamente.
 
 \newpage
 
@@ -268,12 +258,17 @@ Separe a massa de dados em duas partes, conforme esquema abaixo:
 Utilizando os dados de treinamento:
 
 #### 8. Considerando o modelo $\operatorname{SARIMA}(p, d, q) \times(P, D, Q) s$ para a série $Y_t$, defina um valor apropriado para a ordem sazonal $s$ e as ordens de diferenciacões $d$ e $D$ com base nos passos anteriores.
+\
+\
+Para definir os valores apropriados para a ordem sazonal $s$ e as ordens de diferenciação $d$ e $D$ no modelo SARIMA para a série $Y_t$, consideramos a análise de autocorrelação e os testes de estacionaridade realizados anteriormente. As funções de autocorrelação (FAC) e autocorrelação parcial (FACP) da série original $Y_t$ indicaram sazonalidade, e a diferenciação simples $(d=1$ ) aplicada à série ( $\left.y_{\text {diff }}=Y_t-Y_{t-1}\right)$ resultou em estacionaridade confirmada pelo teste ADF. A análise sugeriu um padrão sazonal anual, definindo a ordem sazonal $s=12$ e a ordem sazonal de diferenciação $D=1$. Com $d=1$ e $D=1$ para capturar a sazonalidade anual, o próximo passo é identificar os parâmetros $p, q, P$ e $Q$ usando critérios de informação como AIC ou BIC para selecionar o modelo SARIMA que melhor se ajusta aos dados.
 
 \newpage
 
 #### 9. Defina uma malha de valores para as ordens autorregressivas $p$ e $P$ e de médias móveis $q$ e $Q$ e obtenha o valor do critério de informacao bayesiano de Schwarz (BIC) para cada combinacao $(p, d, q) \times(P, D, Q)$ por meio da funcao sarima do pacote astsa.
 
 \mbox{}
+
+Os valores testados foram os inteiros 0, 1 e 2, e os resultados obtidos foram os seguintes:
 
 ```{r,tidy=TRUE, tidy.opts=list(width.cutoff=60)}
 #Funcao paralelizada (7.7sec) enquanto a normal demora 21sec
@@ -411,6 +406,8 @@ seasonal_order = list(order = best_seasonal_order, period = m)
 best_model <- sarima(train,  p = order[1], d = order[2], q = order[3] , seasonal = seasonal_order)
 ```
 
+O ma1 negativo indica uma relação inversa entre as observações passadas e a atual, significando que um aumento nas observações passadas pode resultar em uma diminuição na observação atual. O ruído branco (sigma2) é considerado razoável.
+
 \newpage
 
 ##### 11.2 Faca os gráficos da FAC e FACP residual, e aplique o teste de LjungBox.
@@ -420,13 +417,12 @@ best_model <- sarima(train,  p = order[1], d = order[2], q = order[3] , seasonal
 ```{r, fig.align='center', fig.height=8, fig.width=10 }
 # Obtém os resíduos do melhor modelo
 residuals <- residuals(best_model$fit)
-
 # Plota a ACF e PACF dos resíduos
 par(mfrow = c(2, 1))
-
 acf(residuals, main = "ACF dos Residuos", lag.max = 20)
 pacf(residuals, main = "PACF dos Residuos", lag.max = 20)
 ```
+
 
 \newpage
 
@@ -456,6 +452,9 @@ cat("\nConclusão:\n", conclusion, "\n")
 ```
 
 
+Isso sugere que os resíduos do modelo SARIMA ajustado podem ser tratados como ruído branco, indicando que o modelo capturou bem a estrutura dos dados. Como não há sinais significativos de autocorrelação nos resíduos, o modelo é considerado adequado e pode ser utilizado para previsões futuras.
+
+
 ##### 11.3 Teste a normalidade residual.
 
 \mbox{}
@@ -481,13 +480,12 @@ if (shapiro_p_value > 0.05) {
 
 ##### 11.4 Caso haja problemas em 11.1 e 11.2 , repita a análise com os próximos modelos candidatos.
 
-```{r}
-
-```
-
+Não houve problemas nos passos 11.1 e 11.2, portanto mantivemos o modelo selecionado
 
 ##### 11.5 Caso nao seja possível encontrar um modelo adequado, será preciso redefinir o modelo no passo 8 . Se as ordens $s, d$, e $D$ estiverem corretas, entao é possível que o modelo SARIMA näo seja apropriado.
 Utilizando os dados de validacao:
+
+Nao foi necessario redefinir o modelo
 
 \newpage
 
@@ -597,7 +595,7 @@ if (mape < 10) {
 
 \mbox{}
 
-```{r}
+```{r,fig.align = 'center',fig.width=10, fig.height=5}
 horizon <- 12
 
 last_date <- tail(df$Ano,n=1)
@@ -644,8 +642,9 @@ print(forecast_df)
 
 #### 14. Redija um parágrafo concluindo o estudo (inclua uma recomendação sobre como o modelo deve ser atualizado à medida que novas informações estiverem disponíveis).
 
-
-
+\
+\
+Ao concluir o estudo do modelo, podemos afirmar que ele apresenta um desempenho excelente, com alta precisão nas previsões. Observamos uma relação inversa entre as observações passadas e as atuais, assim como entre as variações sazonais passadas e as atuais. Não detectamos problemas de autocorrelação nos resíduos, o que é positivo; no entanto, os resíduos não seguem uma distribuição normal, sugerindo a necessidade de monitoramento e ajustes contínuos conforme novas informações surjam. Em resumo, o modelo é eficaz, mas precisa ser atualizado regularmente para manter sua precisão e confiabilidade.
 
 
 
