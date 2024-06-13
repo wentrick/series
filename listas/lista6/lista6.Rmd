@@ -1,14 +1,23 @@
 ---
 title: "Lista 6 -Series"
-author: "Davi Wentrick Feijó"
+author: "Davi Wentrick Feijó - 200016806"
 date: "2024-06-11"
 output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-pacman::p_load(tidyverse,readxl,pracma,readr,tsibble,feasts,tibbletime,zoo,forecast)
+pacman::p_load(tidyverse,readxl,pracma,readr,tsibble,feasts,tibbletime,zoo,forecast,knitr,kableExtra)
+# Leitura dos dados
+data <- read_csv("ALGONQUIN_PARK_Ontario_Canada.csv")
 
+
+# Seleção das colunas de interesse
+columns_of_interest <- c(
+  "Mean Max Temp (°C)", "Mean Min Temp (°C)", "Mean Temp (°C)",
+  "Extr Max Temp (°C)", "Extr Min Temp (°C)", "Total Rain (mm)",
+  "Total Snow (cm)", "Total Precip (mm)"
+)
 ```
 
 Tente analisar separadamente as seguintes séries temporais mensais encontradas no arquivo "ALGONQUIN_PARK_Ontario_Canada.csv":
@@ -22,36 +31,65 @@ Tente analisar separadamente as seguintes séries temporais mensais encontradas 
 7. "Total Snow (cm)",
 8. "Total Precip (mm)".
 
-```{r}
-# Leitura dos dados
-data <- read_csv("ALGONQUIN_PARK_Ontario_Canada.csv")
+Vamos antes fazer uma breve analise exploratoria para enteder a base de dados:
 
+#### Contagem de valores nulos
 
-# Seleção das colunas de interesse
-columns_of_interest <- c(
-  "Mean Max Temp (°C)", "Mean Min Temp (°C)", "Mean Temp (°C)",
-  "Extr Max Temp (°C)", "Extr Min Temp (°C)", "Total Rain (mm)",
-  "Total Snow (cm)", "Total Precip (mm)"
-)
+\mbox{}
 
+```{r,fig.align='center',fig.height=8,fig.width=8}
 # Contagem de valores nulos
 null_counts <- sapply(data[columns_of_interest], function(x) sum(is.na(x)))
 print(null_counts)
+```
 
-# Estatísticas descritivas
-descriptive_stats <- data[columns_of_interest] %>% 
+\newpage
+
+#### Tabela de estatisticas descritivas
+\
+\
+\mbox{}
+
+```{r}
+# Gerar as estatísticas descritivas
+descriptive_stats <- data[columns_of_interest] %>%
   summarise(across(everything(), list(
     count = ~sum(!is.na(.)),
-    mean = ~mean(., na.rm = TRUE),
-    std = ~sd(., na.rm = TRUE),
-    min = ~min(., na.rm = TRUE),
-    q25 = ~quantile(., 0.25, na.rm = TRUE),
-    median = ~median(., na.rm = TRUE),
-    q75 = ~quantile(., 0.75, na.rm = TRUE),
-    max = ~max(., na.rm = TRUE)
-  )))
-print(descriptive_stats)
+    mean = ~round(mean(., na.rm = TRUE), 2),
+    std = ~round(sd(., na.rm = TRUE), 2),
+    min = ~round(min(., na.rm = TRUE), 2),
+    q25 = ~round(quantile(., 0.25, na.rm = TRUE), 2),
+    median = ~round(median(., na.rm = TRUE), 2),
+    q75 = ~round(quantile(., 0.75, na.rm = TRUE), 2),
+    max = ~round(max(., na.rm = TRUE), 2)
+  ))) %>%
+  pivot_longer(cols = everything(),
+               names_to = c("variable", ".value"),
+               names_sep = "_")
+```
 
+
+```{r echo=FALSE}
+# Gerar a tabela com kable e centralizá-la
+kable(descriptive_stats,
+      caption = "Estatísticas Descritivas",
+      col.names = c("Variável", "Contagem", "Média", "Desvio Padrão", "Mínimo", "1º Quartil", "Mediana", "3º Quartil", "Máximo")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
+                full_width = FALSE, 
+                position = "center", 
+                latex_options = c("hold_position", "scale_down")) 
+```
+
+\newpage
+
+#### Plots das series temporais 
+\
+\
+Foi utilizado uma funcao para rodar os plots tendo em vista que estaremos mudando apenas uma variavel e os plots seriam os mesmos
+
+\mbox{}
+
+```{r,fig.align='center',fig.height=8,fig.width=8}
 # Função para decomposição sazonal e plotagem
 plot_series_with_decomposition <- function(series, title, window=12) {
   series_ts <- ts(series, frequency=12)  # Converter série para objeto de série temporal
