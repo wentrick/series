@@ -1,6 +1,6 @@
 ---
 title: "Lista 5 - Series"
-author: "Davi Wentrick Feijó"
+author: "Davi Wentrick Feijó - 200016806"
 date: "2024-06-03"
 output:
   html_document:
